@@ -13,6 +13,9 @@ A professional-grade web-based security scanner for Oracle E-Business Suite (EBS
 
 ## Quick Start
 
+<img width="1423" height="928" alt="image" src="https://github.com/user-attachments/assets/351bd442-ee9d-4c94-a4a1-910d967ff74d" />
+
+
 ```bash
 pip install -r requirements.txt
 python app.py
