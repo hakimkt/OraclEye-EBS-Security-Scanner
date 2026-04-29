@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OraclEye — EBS Security Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #09090f;
+    --surface:  #0e0e1a;
+    --panel:    #13131f;
+    --border:   #1e2035;
+    --accent:   #00e5ff;
+    --accent2:  #ff6b35;
+    --accent3:  #a855f7;
+    --critical: #ff2d55;
+    --high:     #ff6b35;
+    --medium:   #ffd60a;
+    --low:      #30d158;
+    --info:     #00e5ff;
+    --text:     #c8d0e8;
+    --muted:    #4a5070;
+    --mono:     'Share Tech Mono', monospace;
+    --ui:       'Rajdhani', sans-serif;
+    --body:     'Exo 2', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow orb */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px; left: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo-icon {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%,100% { filter: drop-shadow(0 0 8px var(--accent)); }
+    50%      { filter: drop-shadow(0 0 20px var(--accent)) drop-shadow(0 0 40px rgba(0,229,255,0.3)); }
+  }
+
+  .logo-text h1 {
+    font-family: var(--ui);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo-text p {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  .header-badges { display: flex; gap: 8px; }
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .badge-outline { border: 1px solid var(--border); color: var(--muted); }
+  .badge-live { border: 1px solid var(--accent); color: var(--accent); background: rgba(0,229,255,0.06); }
+
+  /* ── LAYOUT ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* ── PANEL ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 14px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .panel-header-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .panel-title {
+    font-family: var(--ui);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .panel-body { padding: 20px; }
+
+  /* ── FORM ── */
+  .form-group { margin-bottom: 18px; }
+
+  label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input[type="text"]:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,229,255,0.1);
+  }
+
+  input[type="text"]::placeholder { color: var(--muted); }
+
+  /* ── INTRUSIVITY SELECTOR ── */
+  .intrusivity-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .intru-option input { display: none; }
+
+  .intru-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .intru-option input:checked + .intru-label {
+    border-color: var(--accent);
+    background: rgba(0,229,255,0.08);
+    box-shadow: 0 0 12px rgba(0,229,255,0.1);
+  }
+
+  .intru-icon { font-size: 18px; }
+  .intru-name {
+    font-family: var(--ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .intru-option:nth-child(1) input:checked + .intru-label { border-color: var(--low); background: rgba(48,209,88,0.06); }
+  .intru-option:nth-child(2) input:checked + .intru-label { border-color: var(--medium); background: rgba(255,214,10,0.06); }
+  .intru-option:nth-child(3) input:checked + .intru-label { border-color: var(--high); background: rgba(255,107,53,0.06); }
+  .intru-option:nth-child(4) input:checked + .intru-label { border-color: var(--critical); background: rgba(255,45,85,0.06); }
+
+  /* ── MODULE LIST ── */
+  .module-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+
+  .module-list::-webkit-scrollbar { width: 4px; }
+  .module-list::-webkit-scrollbar-track { background: var(--surface); }
+  .module-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .module-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .module-item:hover { border-color: var(--muted); }
+  .module-item.selected { border-color: var(--accent); background: rgba(0,229,255,0.04); }
+
+  .module-item input[type="checkbox"] { display: none; }
+
+  .module-check {
+    width: 14px; height: 14px;
+    border: 1px solid var(--muted);
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    transition: all 0.15s;
+  }
+
+  .module-item.selected .module-check {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+  }
+
+  .module-info { flex: 1; min-width: 0; }
+  .module-name { font-family: var(--ui); font-size: 12px; font-weight: 600; }
+  .module-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .sev-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+
+  .sev-critical { background: rgba(255,45,85,0.15); color: var(--critical); border: 1px solid rgba(255,45,85,0.3); }
+  .sev-high     { background: rgba(255,107,53,0.15); color: var(--high);     border: 1px solid rgba(255,107,53,0.3); }
+  .sev-medium   { background: rgba(255,214,10,0.15); color: var(--medium);   border: 1px solid rgba(255,214,10,0.3); }
+  .sev-low      { background: rgba(48,209,88,0.15);  color: var(--low);      border: 1px solid rgba(48,209,88,0.3); }
+  .sev-info     { background: rgba(0,229,255,0.1);   color: var(--info);     border: 1px solid rgba(0,229,255,0.25); }
+
+  /* ── ADVANCED OPTIONS ── */
+  .adv-toggle {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    user-select: none;
+  }
+  .adv-toggle:hover { color: var(--text); }
+  .adv-body { display: none; }
+  .adv-body.open { display: block; }
+
+  /* ── SCAN BUTTON ── */
+  .btn-scan {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(90deg, rgba(0,229,255,0.12), rgba(168,85,247,0.12));
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--accent);
+    font-family: var(--ui);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-scan::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(0,229,255,0.1), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.4s;
+  }
+
+  .btn-scan:hover::before { transform: translateX(100%); }
+  .btn-scan:hover { box-shadow: 0 0 20px rgba(0,229,255,0.2); }
+  .btn-scan:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--muted);
+    font-family: var(--ui);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+  /* ── RIGHT PANEL ── */
+  .results-area { display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── RISK METER ── */
+  .risk-meter {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+
+  .metric-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    text-align: center;
+  }
+
+  .metric-value {
+    font-family: var(--mono);
+    font-size: 36px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .metric-label {
+    font-family: var(--ui);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ── STAT BAR ── */
+  .stat-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .stat-pill .count { font-size: 18px; font-weight: 400; }
+
+  /* ── PROGRESS ── */
+  .progress-wrap { margin-bottom: 4px; }
+  .progress-track {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    transition: width 0.4s ease;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* ── LOG CONSOLE ── */
+  .log-console {
+    background: #050508;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12px;
+    height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+  }
+
+  .log-console::-webkit-scrollbar { width: 4px; }
+  .log-console::-webkit-scrollbar-track { background: #050508; }
+  .log-console::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .log-line { padding: 2px 0; line-height: 1.6; }
+  .log-ts { color: var(--muted); }
+  .log-info    .log-msg { color: var(--text); }
+  .log-success .log-msg { color: var(--low); }
+  .log-warn    .log-msg { color: var(--medium); }
+  .log-error   .log-msg { color: var(--critical); }
+  .log-critical .log-msg { color: var(--critical); font-weight: bold; }
+  .log-high    .log-msg { color: var(--high); }
+  .log-medium  .log-msg { color: var(--medium); }
+  .log-low     .log-msg { color: var(--low); }
+
+  /* ── FINDINGS TABLE ── */
+  .findings-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .finding-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+
+  .finding-card.sev-critical { border-left-color: var(--critical); }
+  .finding-card.sev-high     { border-left-color: var(--high); }
+  .finding-card.sev-medium   { border-left-color: var(--medium); }
+  .finding-card.sev-low      { border-left-color: var(--low); }
+  .finding-card.sev-info     { border-left-color: var(--info); }
+
+  .finding-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .finding-header:hover { background: rgba(255,255,255,0.02); }
+
+  .finding-title {
+    flex: 1;
+    font-family: var(--ui);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .finding-expand { color: var(--muted); font-size: 11px; transition: transform 0.2s; }
+  .finding-card.open .finding-expand { transform: rotate(180deg); }
+
+  .finding-body {
+    display: none;
+    padding: 0 16px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .finding-card.open .finding-body { display: block; }
+
+  .finding-field { margin-top: 10px; }
+  .finding-field-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .finding-field-value {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    word-break: break-all;
+  }
+  .finding-field-value.evidence {
+    background: var(--panel);
+    padding: 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  .finding-field-value.remediation { color: var(--low); }
+  .finding-url { color: var(--accent); }
+  .cve-link {
+    display: inline-block;
+    margin-top: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent3);
+    text-decoration: none;
+    border: 1px solid rgba(168,85,247,0.3);
+    padding: 2px 8px;
+    border-radius: 2px;
+  }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .filter-btn {
+    padding: 5px 12px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+
+  .filter-btn.active { color: var(--text); border-color: var(--text); }
+  .filter-btn.active.fc { color: var(--critical); border-color: var(--critical); background: rgba(255,45,85,0.08); }
+  .filter-btn.active.fh { color: var(--high);     border-color: var(--high);     background: rgba(255,107,53,0.08); }
+  .filter-btn.active.fm { color: var(--medium);   border-color: var(--medium);   background: rgba(255,214,10,0.08); }
+  .filter-btn.active.fl { color: var(--low);      border-color: var(--low);      background: rgba(48,209,88,0.08); }
+  .filter-btn.active.fi { color: var(--info);     border-color: var(--info);     background: rgba(0,229,255,0.08); }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+  .empty-title { font-family: var(--ui); font-size: 16px; margin-bottom: 8px; }
+  .empty-sub { font-family: var(--mono); font-size: 12px; }
+
+  /* ── SCANNING ANIMATION ── */
+  @keyframes scan-line {
+    0%   { transform: translateY(-100%); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateY(100vh); opacity: 0; }
+  }
+
+  .scanning-indicator {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .scanning-indicator.active { display: flex; }
+
+  .scan-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0; }
+  }
+
+  /* ── EXPORT BUTTON ── */
+  .export-bar {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab-btn {
+    padding: 10px 18px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--ui);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── RISK SCORE RING ── */
+  .risk-ring-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .risk-ring {
+    position: relative;
+    width: 80px; height: 80px;
+  }
+
+  .risk-ring svg { transform: rotate(-90deg); }
+
+  .risk-ring-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .risk-ring-score {
+    font-family: var(--mono);
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .risk-ring-label {
+    font-family: var(--ui);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ── HISTORY ── */
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+  .history-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .history-item:hover { border-color: var(--muted); }
+  .history-target { font-family: var(--mono); font-size: 12px; flex: 1; }
+  .history-status { font-size: 11px; font-family: var(--ui); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ── DISCLAIMER ── */
+  .disclaimer {
+    margin-top: 24px;
+    padding: 12px 16px;
+    background: rgba(255,107,53,0.06);
+    border: 1px solid rgba(255,107,53,0.2);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--high);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      <div class="logo-text">
+        <h1>OraclEye</h1>
+        <p>// ORACLE EBS SECURITY SCANNER v1.0</p>
+      </div>
+    </div>
+    <div class="header-badges">
+      <span class="badge badge-outline">{{ plugins|length }} MODULES</span>
+      <span class="badge badge-live" id="status-badge">READY</span>
+    </div>
+  </header>
+
+  <div class="main-grid">
+
+    <!-- ══ LEFT: SCAN CONFIG ══ -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Target -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-header-dot"></div>
+          <span class="panel-title">Scan Configuration</span>
+        </div>
+        <div class="panel-body">
+
+          <div class="form-group">
+            <label>Target URL</label>
+            <input type="text" id="target-url" placeholder="https://ebs.company.com" />
+          </div>
+
+          <div class="form-group">
+            <label>Intrusivity Level</label>
+            <div class="intrusivity-grid">
+              <div class="intru-option">
+                <input type="radio" name="intrusivity" id="i-passive" value="passive" checked>
+                <label class="intru-label" for="i-passive">
+                  <span class="intru-icon">🔍</span>
+                  <span class="intru-name">Passive</span>
+                </label>
+              </div>
+              <div class="intru-option">
+                <input type="radio" name="intrusivity" id="i-low" value="low">
+                <label class="intru-label" for="i-low">
+                  <span class="intru-icon">🔦</span>
+                  <span class="intru-name">Low</span>
+                </label>
+              </div>
+              <div class="intru-option">
+                <input type="radio" name="intrusivity" id="i-medium" value="medium">
+                <label class="intru-label" for="i-medium">
+                  <span class="intru-icon">⚡</span>
+                  <span class="intru-name">Medium</span>
+                </label>
+              </div>
+              <div class="intru-option">
+                <input type="radio" name="intrusivity" id="i-aggressive" value="aggressive">
+                <label class="intru-label" for="i-aggressive">
+                  <span class="intru-icon">🔥</span>
+                  <span class="intru-name">Aggressive</span>
+                </label>
+              </div>
+            </div>
+            <div style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.5;" id="intru-desc">
+              Read-only. DNS lookups, banner grabs, public endpoint checks. No payloads sent.
+            </div>
+          </div>
+
+          <!-- Advanced Options -->
+          <div class="form-group">
+            <div class="adv-toggle" onclick="toggleAdv()">
+              <span id="adv-arrow">▶</span>
+              <span>Advanced Options</span>
+            </div>
+            <div class="adv-body" id="adv-body">
+              <div class="form-group">
+                <label>Proxy (optional)</label>
+                <input type="text" id="opt-proxy" placeholder="http://127.0.0.1:8080">
+              </div>
+              <div class="form-group">
+                <label>Request Timeout (seconds)</label>
+                <input type="number" id="opt-timeout" value="10" min="3" max="60">
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-scan" id="btn-scan" onclick="startScan()">
+            ◈ INITIATE SCAN
+          </button>
+
+          <div style="margin-top:8px;display:flex;justify-content:center;">
+            <button class="btn-secondary" id="btn-stop" onclick="stopScan()" style="display:none;">
+              ■ STOP SCAN
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Module Selection -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-header-dot" style="background:var(--accent3);box-shadow:0 0 8px var(--accent3)"></div>
+          <span class="panel-title">Check Modules</span>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button class="btn-secondary" style="padding:3px 10px;font-size:10px;" onclick="selectAll()">ALL</button>
+            <button class="btn-secondary" style="padding:3px 10px;font-size:10px;" onclick="selectNone()">NONE</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:12px;">
+          <div class="module-list" id="module-list">
+            {% for plugin in plugins %}
+            <div class="module-item selected" data-id="{{ plugin.id }}" data-intru="{{ plugin.min_intrusivity }}" onclick="toggleModule(this)">
+              <input type="checkbox" checked>
+              <div class="module-check">✓</div>
+              <div class="module-info">
+                <div class="module-name">{{ plugin.name }}</div>
+                <div class="module-meta">{{ plugin.category }} · {{ plugin.min_intrusivity }}+</div>
+              </div>
+              <span class="sev-badge sev-{{ plugin.severity }}">{{ plugin.severity }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Disclaimer -->
+      <div class="disclaimer">
+        ⚠ AUTHORIZED USE ONLY — Only scan systems you own or have explicit written permission to test. Unauthorized scanning is illegal. This tool is for professional security assessments only.
+      </div>
+
+    </div>
+
+    <!-- ══ RIGHT: RESULTS ══ -->
+    <div class="results-area">
+
+      <!-- Risk Summary -->
+      <div class="risk-meter">
+        <div class="metric-card" style="grid-column:span 1;">
+          <div class="risk-ring-wrap">
+            <div class="risk-ring">
+              <svg width="80" height="80" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border)" stroke-width="6"/>
+                <circle cx="40" cy="40" r="34" fill="none" stroke="var(--accent)" stroke-width="6"
+                        stroke-dasharray="213.6" stroke-dashoffset="213.6"
+                        stroke-linecap="round" id="risk-circle" style="transition:stroke-dashoffset 1s,stroke 0.5s"/>
+              </svg>
+              <div class="risk-ring-text">
+                <div class="risk-ring-score" id="risk-score" style="color:var(--accent)">0</div>
+                <div class="risk-ring-label">/100</div>
+              </div>
+            </div>
+            <div style="font-family:var(--ui);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Risk Score</div>
+            <div id="risk-rating" style="font-family:var(--ui);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--accent)">—</div>
+          </div>
+        </div>
+
+        <div class="metric-card" style="grid-column:span 2;">
+          <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:8px 0;">
+            <div class="stat-pill sev-critical">
+              <span class="count" id="cnt-critical">0</span>
+              <span>Critical</span>
+            </div>
+            <div class="stat-pill sev-high">
+              <span class="count" id="cnt-high">0</span>
+              <span>High</span>
+            </div>
+            <div class="stat-pill sev-medium">
+              <span class="count" id="cnt-medium">0</span>
+              <span>Medium</span>
+            </div>
+            <div class="stat-pill sev-low">
+              <span class="count" id="cnt-low">0</span>
+              <span>Low</span>
+            </div>
+            <div class="stat-pill sev-info">
+              <span class="count" id="cnt-info">0</span>
+              <span>Info</span>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <div class="scanning-indicator" id="scanning-indicator">
+                <div class="scan-dot"></div>
+                <span id="progress-label">Scanning...</span>
+              </div>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--muted);" id="progress-pct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar" id="progress-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="panel">
+        <div class="panel-body" style="padding-bottom:0;padding-top:0;">
+          <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('findings',this)">Findings</button>
+            <button class="tab-btn" onclick="switchTab('console',this)">Console Log</button>
+            <button class="tab-btn" onclick="switchTab('history',this)">Scan History</button>
+          </div>
+        </div>
+
+        <!-- Findings Tab -->
+        <div class="tab-content active" id="tab-findings">
+          <div class="panel-body" style="padding-top:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+              <div class="filter-bar" id="filter-bar">
+                <button class="filter-btn active" data-f="all" onclick="setFilter('all',this)">All</button>
+                <button class="filter-btn fc" data-f="critical" onclick="setFilter('critical',this)">Critical</button>
+                <button class="filter-btn fh" data-f="high" onclick="setFilter('high',this)">High</button>
+                <button class="filter-btn fm" data-f="medium" onclick="setFilter('medium',this)">Medium</button>
+                <button class="filter-btn fl" data-f="low" onclick="setFilter('low',this)">Low</button>
+                <button class="filter-btn fi" data-f="info" onclick="setFilter('info',this)">Info</button>
+              </div>
+              <div class="export-bar">
+                <button class="btn-secondary" onclick="exportJSON()" style="font-size:11px;padding:5px 12px;">⬇ JSON</button>
+                <button class="btn-secondary" onclick="exportHTML()" style="font-size:11px;padding:5px 12px;">⬇ Report</button>
+              </div>
+            </div>
+            <div class="findings-list" id="findings-list">
+              <div class="empty-state" id="empty-state">
+                <div class="empty-icon">◎</div>
+                <div class="empty-title">No findings yet</div>
+                <div class="empty-sub">Configure target and initiate scan</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Console Tab -->
+        <div class="tab-content" id="tab-console">
+          <div class="panel-body">
+            <div class="log-console" id="log-console">
+              <div class="log-line log-info">
+                <span class="log-ts">[--:--:--] </span>
+                <span class="log-msg">OraclEye scanner ready. Configure target and press INITIATE SCAN.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Tab -->
+        <div class="tab-content" id="tab-history">
+          <div class="panel-body">
+            <div class="history-list" id="history-list">
+              <div class="empty-state" style="padding:30px;">
+                <div class="empty-icon" style="font-size:32px;">📋</div>
+                <div class="empty-title">No previous scans</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let currentJobId = null;
+let evtSource = null;
+let allFindings = [];
+let activeFilter = 'all';
+let scanHistory = JSON.parse(localStorage.getItem('oraclEye_history') || '[]');
+
+// ── INTRUSIVITY DESCRIPTIONS ──
+const intruDesc = {
+  passive:    'Read-only. DNS lookups, banner grabs, public endpoint checks. No payloads sent.',
+  low:        'Passive checks + header analysis, cookie flags, TLS config, login page inspection.',
+  medium:     'Low checks + injection probing, SSRF tests, redirect testing. May appear in logs.',
+  aggressive: 'Full testing including default credential checks, port scanning, deep enumeration. ⚠ May trigger lockouts or IDS alerts.'
+};
+
+document.querySelectorAll('input[name="intrusivity"]').forEach(r => {
+  r.addEventListener('change', () => {
+    document.getElementById('intru-desc').textContent = intruDesc[r.value] || '';
+  });
+});
+
+// ── MODULE TOGGLE ──
+function toggleModule(el) {
+  el.classList.toggle('selected');
+  const chk = el.querySelector('.module-check');
+  chk.textContent = el.classList.contains('selected') ? '✓' : '';
+}
+
+function selectAll()  { document.querySelectorAll('.module-item').forEach(el => { el.classList.add('selected'); el.querySelector('.module-check').textContent = '✓'; }); }
+function selectNone() { document.querySelectorAll('.module-item').forEach(el => { el.classList.remove('selected'); el.querySelector('.module-check').textContent = ''; }); }
+
+// ── ADV TOGGLE ──
+function toggleAdv() {
+  const body = document.getElementById('adv-body');
+  const arrow = document.getElementById('adv-arrow');
+  body.classList.toggle('open');
+  arrow.textContent = body.classList.contains('open') ? '▼' : '▶';
+}
+
+// ── TAB SWITCH ──
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+  if (id === 'history') renderHistory();
+}
+
+// ── SCAN CONTROL ──
+async function startScan() {
+  const target = document.getElementById('target-url').value.trim();
+  if (!target) { alert('Please enter a target URL.'); return; }
+
+  const intrusivity = document.querySelector('input[name="intrusivity"]:checked').value;
+  const selectedModules = [...document.querySelectorAll('.module-item.selected')].map(el => el.dataset.id);
+  if (!selectedModules.length) { alert('Please select at least one module.'); return; }
+
+  const options = {
+    proxy:   document.getElementById('opt-proxy').value.trim(),
+    timeout: document.getElementById('opt-timeout').value,
+  };
+
+  // Reset UI
+  allFindings = [];
+  renderFindings();
+  document.getElementById('log-console').innerHTML = '';
+  setStats({critical:0,high:0,medium:0,low:0,info:0,total:0});
+  setProgress(0, 'Starting...');
+  document.getElementById('risk-score').textContent = '0';
+  document.getElementById('risk-rating').textContent = '—';
+  updateRiskRing(0, 'var(--accent)');
+  document.getElementById('scanning-indicator').classList.add('active');
+  document.getElementById('btn-scan').disabled = true;
+  document.getElementById('btn-stop').style.display = 'inline-block';
+  document.getElementById('status-badge').textContent = 'SCANNING';
+  document.getElementById('status-badge').style.color = 'var(--medium)';
+  document.getElementById('status-badge').style.borderColor = 'var(--medium)';
+
+  try {
+    const resp = await fetch('/api/scan/start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({target, intrusivity, modules: selectedModules, options})
+    });
+    const data = await resp.json();
+    if (data.error) { alert(data.error); resetScanUI(); return; }
+
+    currentJobId = data.job_id;
+    startEventStream(currentJobId);
+
+    // Save to history
+    scanHistory.unshift({job_id: currentJobId, target, intrusivity, started_at: new Date().toISOString(), status: 'running'});
+    if (scanHistory.length > 20) scanHistory.pop();
+    localStorage.setItem('oraclEye_history', JSON.stringify(scanHistory));
+
+  } catch(e) {
+    appendLog({ts:'--:--:--', level:'error', msg: 'Failed to start scan: ' + e.message});
+    resetScanUI();
+  }
+}
+
+function stopScan() {
+  if (evtSource) { evtSource.close(); evtSource = null; }
+  resetScanUI();
+  appendLog({ts: new Date().toTimeString().slice(0,8), level:'warn', msg:'Scan stopped by user.'});
+}
+
+function startEventStream(jobId) {
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource('/api/scan/' + jobId + '/stream');
+  evtSource.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.error) { appendLog({ts:'--:--',level:'error',msg:d.error}); return; }
+
+    setProgress(d.progress, 'Scanning...');
+    setStats(d.stats);
+
+    (d.new_logs || []).forEach(l => appendLog(l));
+    (d.new_findings || []).forEach(f => {
+      allFindings.push(f);
+      prependFinding(f);
+    });
+
+    if (d.status === 'complete' || d.status === 'error') {
+      evtSource.close();
+      evtSource = null;
+      resetScanUI();
+      setProgress(100, 'Complete');
+      document.getElementById('scanning-indicator').classList.remove('active');
+      document.getElementById('status-badge').textContent = 'COMPLETE';
+      document.getElementById('status-badge').style.color = 'var(--low)';
+      document.getElementById('status-badge').style.borderColor = 'var(--low)';
+      fetchFinalReport(jobId);
+    }
+  };
+  evtSource.onerror = () => {
+    if (evtSource) evtSource.close();
+    resetScanUI();
+  };
+}
+
+async function fetchFinalReport(jobId) {
+  const r = await fetch('/api/scan/' + jobId + '/report');
+  const job = await r.json();
+  if (job.risk_score !== undefined) {
+    const score = Math.round(job.risk_score);
+    document.getElementById('risk-score').textContent = score;
+    document.getElementById('risk-rating').textContent = job.risk_rating || '—';
+    const color = scoreColor(score);
+    updateRiskRing(score, color);
+    document.getElementById('risk-score').style.color = color;
+    document.getElementById('risk-rating').style.color = color;
+  }
+  // Update history
+  scanHistory = scanHistory.map(h => h.job_id === jobId ? {...h, status:'complete', risk_score: job.risk_score, risk_rating: job.risk_rating, stats: job.stats} : h);
+  localStorage.setItem('oraclEye_history', JSON.stringify(scanHistory));
+}
+
+function resetScanUI() {
+  document.getElementById('btn-scan').disabled = false;
+  document.getElementById('btn-stop').style.display = 'none';
+  document.getElementById('scanning-indicator').classList.remove('active');
+}
+
+// ── STATS ──
+function setStats(s) {
+  ['critical','high','medium','low','info'].forEach(k => {
+    document.getElementById('cnt-' + k).textContent = s[k] || 0;
+  });
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  if (label) document.getElementById('progress-label').textContent = label;
+}
+
+// ── RISK RING ──
+function updateRiskRing(score, color) {
+  const circle = document.getElementById('risk-circle');
+  const circumference = 213.6;
+  const offset = circumference - (score / 100) * circumference;
+  circle.style.strokeDashoffset = offset;
+  circle.style.stroke = color;
+}
+
+function scoreColor(score) {
+  if (score >= 30) return 'var(--critical)';
+  if (score >= 20) return 'var(--high)';
+  if (score >= 10) return 'var(--medium)';
+  if (score > 0)   return 'var(--low)';
+  return 'var(--accent)';
+}
+
+// ── LOG ──
+function appendLog(entry) {
+  const console_ = document.getElementById('log-console');
+  const div = document.createElement('div');
+  div.className = `log-line log-${entry.level}`;
+  div.innerHTML = `<span class="log-ts">[${entry.ts}] </span><span class="log-msg">${escHtml(entry.msg)}</span>`;
+  console_.appendChild(div);
+  console_.scrollTop = console_.scrollHeight;
+}
+
+// ── FINDINGS ──
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFindings();
+}
+
+function renderFindings() {
+  const list = document.getElementById('findings-list');
+  const filtered = activeFilter === 'all' ? allFindings : allFindings.filter(f => f.severity === activeFilter);
+  list.innerHTML = '';
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state" id="empty-state">
+      <div class="empty-icon">◎</div>
+      <div class="empty-title">${allFindings.length ? 'No findings for this filter' : 'No findings yet'}</div>
+      <div class="empty-sub">${allFindings.length ? 'Try a different severity filter' : 'Configure target and initiate scan'}</div>
+    </div>`;
+    return;
+  }
+  // Sort by severity
+  const order = {critical:0,high:1,medium:2,low:3,info:4};
+  filtered.sort((a,b) => (order[a.severity]||9) - (order[b.severity]||9));
+  filtered.forEach(f => list.appendChild(buildFindingCard(f)));
+}
+
+function prependFinding(f) {
+  const emptyState = document.getElementById('empty-state');
+  if (emptyState) emptyState.remove();
+
+  if (activeFilter !== 'all' && activeFilter !== f.severity) return;
+
+  const list = document.getElementById('findings-list');
+  const card = buildFindingCard(f);
+  list.prepend(card);
+}
+
+function buildFindingCard(f) {
+  const card = document.createElement('div');
+  card.className = `finding-card sev-${f.severity}`;
+  const cveHtml = f.cve ? `<a href="https://nvd.nist.gov/vuln/detail/${f.cve}" target="_blank" class="cve-link">↗ ${f.cve}</a>` : '';
+  const cvssHtml = f.cvss ? `<span class="sev-badge sev-${cvssToSev(f.cvss)}" style="margin-left:8px;">CVSS ${f.cvss}</span>` : '';
+  card.innerHTML = `
+    <div class="finding-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="sev-badge sev-${f.severity}">${f.severity}</span>
+      <span class="finding-title">${escHtml(f.title)}</span>
+      ${cvssHtml}
+      <span class="finding-expand">▼</span>
+    </div>
+    <div class="finding-body">
+      <div class="finding-field">
+        <div class="finding-field-label">Description</div>
+        <div class="finding-field-value">${escHtml(f.description)}</div>
+      </div>
+      ${f.url ? `<div class="finding-field">
+        <div class="finding-field-label">URL</div>
+        <div class="finding-field-value finding-url">${escHtml(f.url)}</div>
+      </div>` : ''}
+      ${f.evidence ? `<div class="finding-field">
+        <div class="finding-field-label">Evidence</div>
+        <div class="finding-field-value evidence">${escHtml(f.evidence)}</div>
+      </div>` : ''}
+      ${f.remediation ? `<div class="finding-field">
+        <div class="finding-field-label">Remediation</div>
+        <div class="finding-field-value remediation">${escHtml(f.remediation)}</div>
+      </div>` : ''}
+      ${cveHtml}
+    </div>`;
+  return card;
+}
+
+function cvssToSev(s) {
+  if (s >= 9) return 'critical';
+  if (s >= 7) return 'high';
+  if (s >= 4) return 'medium';
+  return 'low';
+}
+
+// ── HISTORY ──
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!scanHistory.length) {
+    list.innerHTML = `<div class="empty-state" style="padding:30px;"><div class="empty-icon" style="font-size:32px;">📋</div><div class="empty-title">No previous scans</div></div>`;
+    return;
+  }
+  list.innerHTML = '';
+  scanHistory.forEach(h => {
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    const col = h.risk_rating === 'CRITICAL' ? 'var(--critical)' : h.risk_rating === 'HIGH' ? 'var(--high)' : h.risk_rating === 'MEDIUM' ? 'var(--medium)' : 'var(--low)';
+    div.innerHTML = `
+      <span class="history-target">${escHtml(h.target)}</span>
+      <span class="badge badge-outline">${h.intrusivity}</span>
+      ${h.risk_rating ? `<span class="history-status" style="color:${col};">${h.risk_rating}</span>` : `<span class="history-status" style="color:var(--muted);">${h.status}</span>`}
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted);">${new Date(h.started_at).toLocaleString()}</span>`;
+    list.appendChild(div);
+  });
+}
+
+// ── EXPORT ──
+function exportJSON() {
+  if (!currentJobId) return;
+  fetch('/api/scan/' + currentJobId + '/report').then(r => r.json()).then(data => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `oraclEye_${data.target.replace(/[^a-z0-9]/gi,'_')}_${Date.now()}.json`;
+    a.click();
+  });
+}
+
+function exportHTML() {
+  if (!allFindings.length) return;
+  const sevOrder = {critical:0,high:1,medium:2,low:3,info:4};
+  const sorted = [...allFindings].sort((a,b) => (sevOrder[a.severity]||9)-(sevOrder[b.severity]||9));
+  const target = document.getElementById('target-url').value;
+  const rows = sorted.map(f => `<tr>
+    <td><b style="color:${sevColor(f.severity)}">${f.severity.toUpperCase()}</b></td>
+    <td>${escHtml(f.title)}</td>
+    <td>${escHtml(f.url||'')}</td>
+    <td>${escHtml(f.description)}</td>
+    <td>${escHtml(f.remediation||'')}</td>
+    <td>${f.cve||''}</td>
+  </tr>`).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>OraclEye Report</title>
+  <style>body{font-family:Arial,sans-serif;padding:40px;} h1{color:#333;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ddd;padding:8px;text-align:left;} th{background:#f5f5f5;} tr:nth-child(even){background:#fafafa;}</style>
+  </head><body>
+  <h1>OraclEye Security Report</h1>
+  <p><b>Target:</b> ${escHtml(target)}</p>
+  <p><b>Generated:</b> ${new Date().toLocaleString()}</p>
+  <p><b>Total Findings:</b> ${allFindings.length}</p>
+  <table><thead><tr><th>Severity</th><th>Title</th><th>URL</th><th>Description</th><th>Remediation</th><th>CVE</th></tr></thead>
+  <tbody>${rows}</tbody></table></body></html>`;
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `oraclEye_report_${Date.now()}.html`;
+  a.click();
+}
+
+function sevColor(s) {
+  return {critical:'#ff2d55',high:'#ff6b35',medium:'#ffd60a',low:'#30d158',info:'#00e5ff'}[s] || '#888';
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

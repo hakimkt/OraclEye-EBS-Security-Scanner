@@ -13,9 +13,6 @@ A professional-grade web-based security scanner for Oracle E-Business Suite (EBS
 
 ## Quick Start
 
-<img width="1423" height="928" alt="image" src="https://github.com/user-attachments/assets/351bd442-ee9d-4c94-a4a1-910d967ff74d" />
-
-
 ```bash
 pip install -r requirements.txt
 python app.py
@@ -34,6 +31,56 @@ python app.py
 | `sql_injection` | SQL / XSS Injection | Medium | SQL errors, reflected XSS |
 | `ssrf_traversal` | SSRF, Path Traversal | Medium | File disclosure, open redirect |
 | `aggressive_deep_scan` | Default Creds & Deep Enum | Aggressive | Default passwords, port scan |
+
+## Adding New Check Modules
+
+Create `scanner/plugins/p09_my_check.py`:
+
+```python
+from scanner.base_plugin import BasePlugin
+
+class MyCustomCheck(BasePlugin):
+    PLUGIN_ID        = "my_custom_check"
+    PLUGIN_NAME      = "My Custom Check"
+    PLUGIN_DESC      = "Checks for XYZ vulnerability."
+    CATEGORY         = "Injection"        # Discovery | Authentication | Injection | Cryptography | Legacy Components
+    MIN_INTRUSIVITY  = "passive"          # passive | low | medium | aggressive
+    BASE_SEVERITY    = "high"
+    CVE_REFS         = ["CVE-XXXX-YYYY"]
+
+    def run(self):
+        resp, err = self.probe("/OA_HTML/SomePath.jsp")
+        if err or not resp:
+            return self.findings
+
+        if resp.status_code == 200 and "SensitiveToken" in resp.text:
+            self.find(
+                title="Sensitive Token Exposed",
+                severity="high",
+                description="The endpoint leaks a sensitive token without authentication.",
+                url=self.target + "/OA_HTML/SomePath.jsp",
+                evidence=f"HTTP {resp.status_code} — Token found in response",
+                remediation="Restrict this endpoint via Apache ACL.",
+                cve="CVE-XXXX-YYYY",
+                cvss=7.5,
+            )
+
+        return self.findings
+```
+
+**That's it.** The plugin is auto-discovered on next startup.
+
+### Plugin API Reference
+
+| Method | Description |
+|--------|-------------|
+| `self.probe(path, method="GET", **kwargs)` | Safe HTTP probe, returns `(response, error)` |
+| `self.get(path, **kwargs)` | Direct GET request |
+| `self.post(path, **kwargs)` | Direct POST request |
+| `self.find(title, severity, description, ...)` | Add a finding |
+| `self.target` | Base URL of the scan target |
+| `self.http` | Full `HTTPClient` instance |
+| `self.options` | Dict of scanner options (proxy, timeout, etc.) |
 
 ### Severity Levels
 `critical` · `high` · `medium` · `low` · `info`
